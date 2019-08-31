@@ -8,6 +8,18 @@ import "./styles.css";
 
 HighchartsMore(Highcharts);
 
+const displaySortedProperties = obj => {
+  return Object.keys(obj)
+    .sort()
+    .reduce(
+      (result, key) => ({
+        ...result,
+        [key]: obj[key]
+      }),
+      {}
+    );
+};
+
 const HighchartsBoxPlotPlus = function(H) {
   H.wrap(H.seriesTypes.boxplot.prototype, "translate", function(proceed) {
     proceed.apply(this, Array.prototype.slice.call(arguments, 1));
@@ -124,9 +136,64 @@ const HighchartsBoxPlotPlus = function(H) {
     });
   });
 
-  H.wrap(H.seriesTypes.boxplot.prototype, "drawGraph", function(proceed) {
-    console.log("Test");
-    console.log(this);
+  H.wrap(H.seriesTypes.boxplot.prototype, "render", function(proceed) {
+    proceed.apply(this, Array.prototype.slice.call(arguments, 1));
+
+    const {
+      backgroundShape,
+      chart: { renderer }
+    } = this;
+
+    const xAxisStart = this.chart.plotLeft;
+    const yAxisEnd = this.chart.plotHeight + this.chart.plotTop;
+    const firstPoint = this.points[0];
+    const lastPoint = this.points[this.points.length - 1];
+
+    const start = firstPoint.plotX + xAxisStart - firstPoint.shapeArgs.width;
+    const chartWidth = lastPoint.plotX + xAxisStart + lastPoint.shapeArgs.width;
+
+    // console.log(displaySortedProperties(this));
+    if (!backgroundShape) {
+      this.backgroundShape = renderer
+        .path([
+          "M",
+          start,
+          0,
+          "L",
+          chartWidth,
+          0,
+          "L",
+          chartWidth,
+          yAxisEnd,
+          "L",
+          start,
+          yAxisEnd,
+          "z"
+        ])
+        .attr({
+          "stroke-width": 0,
+          fill: this.options.backgroundColor || "#ff0000"
+        })
+        .add();
+    } else {
+      this.backgroundShape.animate({
+        d: [
+          "M",
+          start,
+          0,
+          "L",
+          chartWidth,
+          0,
+          "L",
+          chartWidth,
+          yAxisEnd,
+          "L",
+          start,
+          yAxisEnd,
+          "z"
+        ]
+      });
+    }
   });
 };
 
@@ -136,7 +203,7 @@ const tooltip = {
   pointFormat:
     '<span style="color:{point.color}">\u25CF</span> <b> ' +
     "{series.name}</b><br/>" +
-    "Current: {point.current}</br>" +
+    "Current: {point.current}<br/>" +
     "Maximum: {point.high}<br/>" +
     "Median: {point.median}<br/>" +
     "Minimum: {point.low}<br/>"
@@ -147,7 +214,9 @@ const xAxisLabelsFormatter = function() {
 };
 
 const chartOptions = {
-  chart: {},
+  chart: {
+    type: "boxplot"
+  },
   xAxis: {
     title: {
       text: "Example"
@@ -172,18 +241,31 @@ const chartOptions = {
       text: "Example"
     }
   },
+  plotOptions: {
+    boxplot: {
+      whiskerLength: 0,
+      grouping: false,
+      events: {
+        hide() {
+          this.backgroundShape.hide();
+        },
+        show() {
+          this.backgroundShape.show();
+        }
+      }
+    }
+  },
   series: [
     {
-      type: "boxplot",
       name: "Value",
-      zIndex: 0,
-      grouping: false,
       tooltip,
+      zIndex: 0,
+      backgroundColor: "#EAFFFF",
       data: [
         {
           x: 0,
-          low: 3,
-          q1: 3,
+          low: -3,
+          q1: -3,
           median: 5,
           q3: 12,
           high: 12,
@@ -248,15 +330,12 @@ const chartOptions = {
           fillColor: "#9DC3E6",
           indicatorColor: "#203864"
         }
-      ],
-      whiskerLength: 0
+      ]
     },
     {
-      type: "boxplot",
       name: "Growth",
-      zIndex: 1,
-      grouping: false,
       tooltip,
+      backgroundColor: "#F6FFDB",
       data: [
         {
           x: 5,
@@ -313,8 +392,7 @@ const chartOptions = {
           indicatorShape: "circle",
           indicatorColor: "#385723"
         }
-      ],
-      whiskerLength: 0
+      ]
     }
   ],
   title: false,
@@ -323,7 +401,7 @@ const chartOptions = {
 
 function App() {
   return (
-    <div className="App">
+    <div className="App" style={{ margin: 30 }}>
       <HighchartsReact highcharts={Highcharts} options={chartOptions} />
     </div>
   );
